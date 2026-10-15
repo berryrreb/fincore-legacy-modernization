@@ -66,7 +66,7 @@ public class CreditDashboardController {
         this.objectMapper = objectMapper;
     }
 
-    @GetMapping("/")
+    @GetMapping({"", "/", "/index", "/index.html", "/credits", "/credits/reset"})
     public String showDashboard(Model model, HttpServletRequest request) {
         List<CreditApplication> applications = repository.findAllByOrderByIdAsc();
         CreditSummaryDto summaryDto = riskCalculatorService.buildPortfolioSummary(applications);

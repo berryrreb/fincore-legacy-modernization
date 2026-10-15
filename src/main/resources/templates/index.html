@@ -371,7 +371,8 @@
                             <td class="text-end">
                                 <button type="button"
                                         class="btn btn-sm btn-outline-primary"
-                                        th:onclick="'openRegulatoryReport(' + ${app.id} + ', \'' + ${app.referenceCode} + '\')'">
+                                        th:attr="data-id=${app.id},data-ref=${app.referenceCode}"
+                                        onclick="openRegulatoryReport(this.getAttribute('data-id'), this.getAttribute('data-ref'))">
                                     <i class="bi bi-file-earmark-code me-1"></i> Dictamen
                                 </button>
                             </td>
