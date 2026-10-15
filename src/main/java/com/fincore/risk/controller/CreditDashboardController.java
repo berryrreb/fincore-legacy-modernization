@@ -78,6 +78,14 @@ public class CreditDashboardController {
         model.addAttribute("telemetry", objectMapper.convertValue(telemetryDto, Map.class));
         model.addAttribute("requestUri", request.getRequestURI());
 
+        // Detect Google Cloud Run runtime environment (K_SERVICE & K_REVISION are automatically injected by Cloud Run)
+        String kService = System.getenv("K_SERVICE");
+        String kRevision = System.getenv("K_REVISION");
+        boolean cloudRunActive = kService != null && !kService.trim().isEmpty();
+        model.addAttribute("cloudRunActive", cloudRunActive);
+        model.addAttribute("cloudRunService", cloudRunActive ? kService : "Cloud Shell / Local Preview");
+        model.addAttribute("cloudRunRevision", kRevision != null ? kRevision : "legacy-appengine-target");
+
         if (!model.containsAttribute("newCredit")) {
             NewCreditRequestDto defaultForm = new NewCreditRequestDto();
             defaultForm.setProductType("MORTGAGE");

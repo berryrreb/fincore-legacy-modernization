@@ -22,7 +22,7 @@ public class RuntimeTelemetryService {
         String jvmName = System.getProperty("java.vm.name", "Standard JVM");
         String springVersion = SpringBootVersion.getVersion();
 
-        boolean modernJava21 = isJava21OrHigher(javaVersion);
+        boolean modernJava21 = isJava21OrHigher(javaVersion) && isSpringBoot3OrHigher(springVersion);
         boolean virtualThreads = creditBureauService.isExecutorUsingVirtualThreads();
 
         String concurrencyEngine = virtualThreads
@@ -54,6 +54,19 @@ public class RuntimeTelemetryService {
             String majorPart = version.split("[._-]")[0];
             int major = Integer.parseInt(majorPart);
             return major >= 21;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private boolean isSpringBoot3OrHigher(String springVersion) {
+        if (springVersion == null || springVersion.startsWith("2.")) {
+            return false;
+        }
+        try {
+            String majorPart = springVersion.split("[._-]")[0];
+            int major = Integer.parseInt(majorPart);
+            return major >= 3;
         } catch (NumberFormatException e) {
             return false;
         }

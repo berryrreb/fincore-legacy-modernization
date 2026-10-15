@@ -31,3 +31,9 @@ Cuando se realicen tareas de migración o refactorización hacia Java 21 en este
 
 7. **Pruebas Unitarias con JUnit 5 (Jupiter):**
    - Todas las pruebas deben utilizar `@org.junit.jupiter.api.Test`, `@org.junit.jupiter.api.BeforeEach` y `org.junit.jupiter.api.Assertions.*`.
+
+8. **Despliegue Cloud-Native en Google Cloud Run (Migración desde App Engine):**
+   - El archivo legado `app.yaml` (Google App Engine Java 8) debe ser reemplazado en la etapa de despliegue por un `Dockerfile` multi-stage optimizado para Java 21 (`eclipse-temurin:21-jdk-jammy` para compilación y `eclipse-temurin:21-jre-jammy` para ejecución).
+   - El contenedor debe ejecutarse con un usuario sin privilegios (`non-root`), respetar la variable de entorno `PORT` inyectada por Cloud Run (`server.port=${PORT:8080}`) y configurar `-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0`.
+   - En el despliegue a Cloud Run (`gcloud run deploy`), aprovecha la eficiencia de los Virtual Threads de Java 21 configurando concurrencia alta por instancia (`--concurrency 80`).
+

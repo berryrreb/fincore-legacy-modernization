@@ -1,0 +1,39 @@
+# ============================================================================
+# LEGACY GOOGLE APP ENGINE CONFIGURATION (JAVA 8)
+# ============================================================================
+# DEUDA TÉCNICA PARA EL LABORATORIO (MISIÓN 5 - MIGRACIÓN A CLOUD RUN):
+# Esta aplicación bancaria fue diseñada originalmente para desplegarse en
+# Google App Engine (runtime: java8).
+#
+# Problemas del esquema legado:
+# 1. Runtime Java 8 deprecado / en soporte extendido.
+# 2. Acoplamiento a configuración propietaria de App Engine (instance_class F4).
+# 3. Escalado lento ante picos de I/O bloqueante (consultas al Buró de Crédito)
+#    debido al límite de hilos del sistema operativo por instancia.
+#
+# OBJETIVO DE MODERNIZACIÓN (CLOUD RUN + JAVA 21 VIRTUAL THREADS):
+# Reemplazar este despliegue basado en app.yaml por un contenedor OCI inmutable
+# (Dockerfile multi-stage con Eclipse Temurin 21 JRE) desplegado en Google Cloud Run,
+# aprovechando Virtual Threads (Project Loom) para manejar alta concurrencia
+# (--concurrency 80) por instancia con escalado a cero y arranque rápido.
+# ============================================================================
+
+runtime: java8
+instance_class: F4
+
+env_variables:
+  SPRING_PROFILES_ACTIVE: "legacy-appengine"
+  FINCORE_REGULATORY_STANDARD: "BASEL-III-CNBV-2026"
+  JAVA_USER_OPTS: "-Xmx512m -XX:+UseSerialGC"
+
+automatic_scaling:
+  min_idle_instances: 1
+  max_idle_instances: 3
+  min_pending_latency: 300ms
+  max_pending_latency: 1500ms
+  max_concurrent_requests: 10
+
+handlers:
+  - url: /.*
+    script: this field is required, but ignored
+    secure: always
