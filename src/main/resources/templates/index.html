@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinCore | Motor Bancario de Riesgo y Originación de Crédito</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --fincore-navy: #0b192c;
+            --fincore-slate: #1e293b;
+            --fincore-accent: #2563eb;
+        }
+        body {
+            background-color: #f1f5f9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: #0f172a;
+        }
+        .navbar-fincore {
+            background: linear-gradient(90deg, #0b192c 0%, #1e3a8a 100%);
+            border-bottom: 3px solid #3b82f6;
+        }
+        .telemetry-banner-legacy {
+            background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+            border: 2px solid #f59e0b;
+            border-left: 8px solid #d97706;
+        }
+        .telemetry-banner-modern {
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+            border: 2px solid #10b981;
+            border-left: 8px solid #059669;
+        }
+        .kpi-card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+            transition: transform 0.15s ease;
+        }
+        .kpi-card:hover {
+            transform: translateY(-2px);
+        }
+        .bureau-benchmark-card {
+            background: #0f172a;
+            color: #f8fafc;
+            border-radius: 12px;
+            border: 1px solid #334155;
+        }
+        .badge-risk-LOW { background-color: #dcfce7; color: #166534; border: 1px solid #86efac; }
+        .badge-risk-MEDIUM { background-color: #fef9c3; color: #854d0e; border: 1px solid #fde047; }
+        .badge-risk-HIGH { background-color: #ffedd5; color: #9a3412; border: 1px solid #fdba74; }
+        .badge-risk-CRITICAL { background-color: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+
+        .badge-status-APPROVED { background-color: #16a34a; color: #ffffff; }
+        .badge-status-CONDITIONAL { background-color: #d97706; color: #ffffff; }
+        .badge-status-REJECTED { background-color: #dc2626; color: #ffffff; }
+        .badge-status-PENDING_BUREAU { background-color: #64748b; color: #ffffff; }
+
+        .code-terminal {
+            background-color: #090d16;
+            color: #38bdf8;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 0.85rem;
+            border-radius: 8px;
+            padding: 1rem;
+            max-height: 440px;
+            overflow-y: auto;
+        }
+        .thread-pill {
+            font-family: "SFMono-Regular", Consolas, monospace;
+            font-size: 0.75rem;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Top Corporate Navigation -->
+<nav class="navbar navbar-expand-lg navbar-dark navbar-fincore py-3 shadow-sm">
+    <div class="container-fluid px-4">
+        <a class="navbar-brand d-flex align-items-center fw-bold fs-4" href="/">
+            <i class="bi bi-bank2 me-2 text-info"></i>
+            FinCore <span class="fw-light ms-2 fs-6 text-light opacity-75">| Credit Risk &amp; Origination Engine</span>
+        </a>
+        <div class="d-flex align-items-center gap-3">
+            <span class="badge bg-dark border border-secondary px-3 py-2">
+                <i class="bi bi-hdd-network me-1 text-info"></i>
+                Memoria JVM: <span th:text="${telemetry.usedMemoryMb}">45</span> / <span th:text="${telemetry.maxMemoryMb}">512</span> MB
+            </span>
+            <form th:action="@{/credits/reset}" method="post" class="m-0">
+                <button type="submit" class="btn btn-outline-light btn-sm">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i> Reiniciar Portafolio Demo
+                </button>
+            </form>
+        </div>
+    </div>
+</nav>
+
+<div class="container-fluid px-4 py-4">
+
+    <!-- Flash Alerts -->
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- ================================================================================= -->
+    <!-- AUTOMATIC RUNTIME & MIGRATION TELEMETRY BANNER (Changes automatically in Java 21) -->
+    <!-- ================================================================================= -->
+    <div th:class="${telemetry.modernJava21 ? 'telemetry-banner-modern rounded-3 p-3 mb-4 shadow-sm' : 'telemetry-banner-legacy rounded-3 p-3 mb-4 shadow-sm'}">
+        <div class="row align-items-center">
+            <div class="col-lg-7 d-flex align-items-center">
+                <div class="me-3 fs-1">
+                    <i th:if="${telemetry.modernJava21}" class="bi bi-rocket-takeoff-fill text-success"></i>
+                    <i th:unless="${telemetry.modernJava21}" class="bi bi-exclamation-octagon-fill text-warning"></i>
+                </div>
+                <div>
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <span th:if="${telemetry.modernJava21}" class="badge bg-success px-2 py-1">
+                            <i class="bi bi-patch-check-fill me-1"></i> MODERNIZADO: JAVA 21 LTS ACTIVO
+                        </span>
+                        <span th:unless="${telemetry.modernJava21}" class="badge bg-warning text-dark px-2 py-1">
+                            <i class="bi bi-hourglass-split me-1"></i> MODO LEGADO: JAVA 8 DETECTADO
+                        </span>
+                        <span class="fw-bold text-secondary small" th:text="${telemetry.jvmName}">OpenJDK VM</span>
+                    </div>
+                    <h5 class="mb-0 fw-bold">
+                        Java Runtime: <code class="fs-5" th:text="${telemetry.javaVersion}">1.8.0</code>
+                        <span class="mx-2 text-muted">|</span>
+                        Spring Boot: <code class="fs-5" th:text="${telemetry.springBootVersion}">2.7.18</code>
+                    </h5>
+                </div>
+            </div>
+            <div class="col-lg-5 text-lg-end mt-3 mt-lg-0">
+                <div class="d-inline-block text-start bg-white rounded-3 px-3 py-2 border shadow-sm">
+                    <div class="small text-muted text-uppercase fw-semibold">Motor de Concurrencia del Buró</div>
+                    <div class="d-flex align-items-center gap-2 mt-1">
+                        <span th:if="${telemetry.virtualThreadsEnabled}" class="badge bg-primary">
+                            <i class="bi bi-lightning-charge-fill me-1"></i> Virtual Threads (Project Loom)
+                        </span>
+                        <span th:unless="${telemetry.virtualThreadsEnabled}" class="badge bg-secondary">
+                            <i class="bi bi-cpu me-1"></i> OS Platform Thread Pool (Bloqueante)
+                        </span>
+                        <span class="small fw-semibold text-dark" th:text="${telemetry.concurrencyEngine}">FixedThreadPool</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================================= -->
+    <!-- CONCURRENCY BENCHMARK PANEL: CREDIT BUREAU BATCH EVALUATION                       -->
+    <!-- ================================================================================= -->
+    <div class="bureau-benchmark-card p-4 mb-4 shadow">
+        <div class="row align-items-center">
+            <div class="col-lg-6">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <span class="badge bg-info text-dark fw-bold">PRUEBA DE FUEGO EN VIVO</span>
+                    <span class="text-info small fw-semibold">Simulación de Red I/O Bloqueante (220ms por solicitud)</span>
+                </div>
+                <h4 class="fw-bold mb-1">
+                    <i class="bi bi-shield-check me-2 text-info"></i>
+                    Verificación Masiva en Buró Nacional de Crédito
+                </h4>
+                <p class="text-light opacity-75 mb-0 small">
+                    En <strong>Java 8</strong> (<code>FixedThreadPool(2)</code>), evaluar las <span th:text="${summary.totalApplications}">12</span> solicitudes toma <strong>~1,350 ms</strong> por encolamiento de hilos del sistema operativo.
+                    En <strong>Java 21</strong> con <code>Virtual Threads</code>, todas las consultas I/O se ejecutan en paralelo en <strong>~230 ms</strong>.
+                </p>
+            </div>
+            <div class="col-lg-6 mt-3 mt-lg-0">
+                <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-lg-end gap-3">
+                    <button id="btnRunBureauBatch" onclick="runBureauBatchEvaluation()" class="btn btn-info btn-lg fw-bold px-4 shadow">
+                        <i class="bi bi-play-circle-fill me-2"></i>
+                        Consultar Buró Masivo (<span th:text="${summary.totalApplications}">12</span> Créditos)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dynamic Benchmark Result Drawer -->
+        <div id="benchmarkResultPanel" class="mt-3 pt-3 border-top border-secondary d-none">
+            <div class="row align-items-center g-3">
+                <div class="col-md-3">
+                    <div class="p-3 rounded-3 bg-dark border border-secondary text-center">
+                        <div class="small text-secondary text-uppercase">Tiempo Total de Lote</div>
+                        <div id="benchElapsedMs" class="display-6 fw-bold text-warning my-1">--- ms</div>
+                        <span id="benchSpeedBadge" class="badge bg-secondary">Medición completada</span>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 rounded-3 bg-dark border border-secondary h-100">
+                        <div class="small text-secondary text-uppercase mb-1">Modelo de Hilos Detectado</div>
+                        <div id="benchModelName" class="fw-bold text-info fs-6 mb-2">-</div>
+                        <div class="progress" style="height: 10px;">
+                            <div id="benchProgressBar" class="progress-bar bg-warning" role="progressbar" style="width: 100%"></div>
+                        </div>
+                        <div class="d-flex justify-content-between small text-secondary mt-1">
+                            <span>Meta Loom: ~230 ms</span>
+                            <span>Legacy Pool: ~1,350 ms</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-5">
+                    <div class="p-3 rounded-3 bg-dark border border-secondary h-100">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="small text-secondary text-uppercase">Muestra de Hilos Ejecutores (Backend)</span>
+                            <button onclick="window.location.reload()" class="btn btn-sm btn-outline-info py-0">
+                                <i class="bi bi-arrow-repeat me-1"></i> Actualizar Tabla
+                            </button>
+                        </div>
+                        <div id="benchThreadList" class="d-flex flex-wrap gap-1 mt-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================================= -->
+    <!-- PORTFOLIO KPI SUMMARY CARDS                                                       -->
+    <!-- ================================================================================= -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card kpi-card p-3 bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase">Volumen en Evaluación</div>
+                        <h3 class="fw-bold mb-0 mt-1 text-primary">
+                            $<span th:text="${#numbers.formatDecimal(summary.totalRequestedVolume, 1, 'COMMA', 2, 'POINT')}">0.00</span>
+                        </h3>
+                        <span class="small text-muted">En <strong th:text="${summary.totalApplications}">12</strong> expedientes activos</span>
+                    </div>
+                    <div class="fs-1 text-primary opacity-25"><i class="bi bi-cash-stack"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card kpi-card p-3 bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase">Tasa Anual Promedio (T.E.A.)</div>
+                        <h3 class="fw-bold mb-0 mt-1 text-dark">
+                            <span th:text="${summary.averageInterestRate}">11.25</span>%
+                        </h3>
+                        <span class="small text-muted">Calculada por Motor de Riesgo</span>
+                    </div>
+                    <div class="fs-1 text-info opacity-25"><i class="bi bi-percent"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card kpi-card p-3 bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase">Dictámenes del Comité</div>
+                        <div class="d-flex gap-2 mt-2">
+                            <span class="badge bg-success"><span th:text="${summary.approvedCount}">0</span> Aprobados</span>
+                            <span class="badge bg-warning text-dark"><span th:text="${summary.conditionalCount}">0</span> Condicional</span>
+                            <span class="badge bg-danger"><span th:text="${summary.rejectedCount}">0</span> Rechazados</span>
+                        </div>
+                        <span class="small text-muted d-block mt-1">Política Basilea III</span>
+                    </div>
+                    <div class="fs-1 text-success opacity-25"><i class="bi bi-clipboard2-data"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card kpi-card p-3 bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-semibold text-uppercase">Extremos de Cola (Sequenced)</div>
+                        <div class="mt-1">
+                            <span class="small text-muted">Primero:</span>
+                            <code class="fw-bold" th:text="${summary.oldestReferenceCode}">FIN-2026-001</code>
+                        </div>
+                        <div>
+                            <span class="small text-muted">Último:</span>
+                            <code class="fw-bold" th:text="${summary.newestReferenceCode}">FIN-2026-012</code>
+                        </div>
+                    </div>
+                    <div class="fs-1 text-secondary opacity-25"><i class="bi bi-list-ol"></i></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================================= -->
+    <!-- MAIN WORKSPACE: CREDIT PORTFOLIO TABLE & NEW ORIGINATION FORM                     -->
+    <!-- ================================================================================= -->
+    <div class="row g-4">
+        <!-- Credit Applications Table (Left 8 cols) -->
+        <div class="col-xl-8">
+            <div class="card border-0 shadow-sm rounded-3">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-bottom">
+                    <div>
+                        <h5 class="mb-0 fw-bold">
+                            <i class="bi bi-table me-2 text-primary"></i>
+                            Bandeja de Solicitudes y Evaluación Crediticia
+                        </h5>
+                        <small class="text-muted">Haz clic en <strong>"Dictamen"</strong> para inspeccionar el reporte regulatorio JSON.</small>
+                    </div>
+                    <span class="badge bg-light text-dark border">
+                        <span th:text="${#lists.size(applications)}">12</span> registros en H2 Database
+                    </span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light small text-uppercase text-secondary">
+                        <tr>
+                            <th>Folio</th>
+                            <th>Cliente / Razón Social</th>
+                            <th>Producto</th>
+                            <th class="text-end">Monto (USD)</th>
+                            <th class="text-center">Score</th>
+                            <th class="text-center">Riesgo</th>
+                            <th class="text-end">Tasa</th>
+                            <th class="text-center">Dictamen</th>
+                            <th>Hilo Evaluador</th>
+                            <th class="text-end">Reporte</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="app : ${applications}">
+                            <td>
+                                <code class="fw-bold text-primary" th:text="${app.referenceCode}">FIN-001</code>
+                            </td>
+                            <td>
+                                <div class="fw-semibold" th:text="${app.applicantName}">Cliente</div>
+                                <small class="text-muted">Plazo: <span th:text="${app.termMonths}">36</span> meses</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-dark border fw-semibold" th:text="${app.productType}">MORTGAGE</span>
+                            </td>
+                            <td class="text-end fw-semibold">
+                                $<span th:text="${#numbers.formatDecimal(app.requestedAmount, 1, 'COMMA', 0, 'POINT')}">100,000</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="fw-bold" th:text="${app.creditScore}">750</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge rounded-pill px-2 py-1"
+                                      th:classappend="'badge-risk-' + ${app.riskLevel}"
+                                      th:text="${app.riskLevel}">LOW</span>
+                            </td>
+                            <td class="text-end fw-bold">
+                                <span th:text="${#numbers.formatDecimal(app.approvedRateAnnual, 1, 2)}">8.50</span>%
+                            </td>
+                            <td class="text-center">
+                                <span class="badge px-2 py-1"
+                                      th:classappend="'badge-status-' + ${app.status}"
+                                      th:text="${app.status}">APPROVED</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-secondary border thread-pill"
+                                      th:classappend="${app.processedByThread != null and #strings.contains(app.processedByThread, 'VirtualThread') ? 'border-primary text-primary bg-primary-subtle' : ''}"
+                                      th:text="${app.processedByThread}">Initial-Seed</span>
+                            </td>
+                            <td class="text-end">
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-primary"
+                                        th:onclick="'openRegulatoryReport(' + ${app.id} + ', \'' + ${app.referenceCode} + '\')'">
+                                    <i class="bi bi-file-earmark-code me-1"></i> Dictamen
+                                </button>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- New Credit Origination Form (Right 4 cols) -->
+        <div class="col-xl-4">
+            <div class="card border-0 shadow-sm rounded-3">
+                <div class="card-header bg-white py-3 border-bottom">
+                    <h5 class="mb-0 fw-bold">
+                        <i class="bi bi-plus-circle-fill me-2 text-primary"></i>
+                        Originar Nueva Solicitud de Crédito
+                    </h5>
+                    <small class="text-muted">Prueba el motor de reglas (<code>RiskCalculatorService</code>)</small>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/credits}" th:object="${newCredit}" method="post">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Nombre del Cliente o Empresa</label>
+                            <input type="text" th:field="*{applicantName}" class="form-control"
+                                   placeholder="Ej. Constructora del Norte S.A." required>
+                        </div>
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Segmento / Producto</label>
+                                <select th:field="*{productType}" class="form-select">
+                                    <option value="MORTGAGE">MORTGAGE (Hipotecario)</option>
+                                    <option value="CONSUMER">CONSUMER (Consumo)</option>
+                                    <option value="SME">SME (Crédito PyME)</option>
+                                    <option value="CORPORATE">CORPORATE (Corporativo)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Score Buró (300 - 850)</label>
+                                <input type="number" th:field="*{creditScore}" class="form-control" min="300" max="850" required>
+                            </div>
+                        </div>
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Monto Solicitado (USD)</label>
+                                <input type="number" step="500" th:field="*{requestedAmount}" class="form-control" min="1000" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Plazo (Meses)</label>
+                                <input type="number" th:field="*{termMonths}" class="form-control" min="6" max="360" required>
+                            </div>
+                        </div>
+
+                        <div class="row g-2 mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Ingreso / Flujo Mensual (USD)</label>
+                                <input type="number" step="100" th:field="*{monthlyIncomeOrRevenue}" class="form-control" min="500" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Valor Garantía / Inmueble</label>
+                                <input type="number" step="500" th:field="*{collateralOrPropertyValue}" class="form-control" min="0" required>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100 fw-bold py-2">
+                            <i class="bi bi-calculator me-1"></i> Evaluar y Registrar Solicitud
+                        </button>
+                    </form>
+                </div>
+                <div class="card-footer bg-light small text-muted">
+                    <i class="bi bi-info-circle me-1"></i>
+                    En Java 21, esta evaluación utiliza <code>sealed interface LoanProduct</code> y <strong>Pattern Matching for switch</strong> con guardas <code>when</code>.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Regulatory Compliance Report (Basel III JSON) -->
+<div class="modal fade" id="regulatoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-file-earmark-lock2 me-2 text-info"></i>
+                    Expediente Regulatorio Basilea III — <span id="modalRefCode" class="text-info">FIN-000</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="small text-muted">
+                        Generado por <code>RegulatoryReportService.generateRegulatoryPayload()</code>
+                    </span>
+                    <span class="badge bg-secondary">JSON Compliance Payload</span>
+                </div>
+                <pre id="modalReportPayload" class="code-terminal mb-0">Cargando dictamen regulatorio...</pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    async function runBureauBatchEvaluation() {
+        const btn = document.getElementById('btnRunBureauBatch');
+        const panel = document.getElementById('benchmarkResultPanel');
+        const elapsedEl = document.getElementById('benchElapsedMs');
+        const modelEl = document.getElementById('benchModelName');
+        const badgeEl = document.getElementById('benchSpeedBadge');
+        const barEl = document.getElementById('benchProgressBar');
+        const threadsEl = document.getElementById('benchThreadList');
+
+        btn.disabled = true;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Consultando Buró Nacional...';
+        panel.classList.remove('d-none');
+        elapsedEl.textContent = 'Ejecutando...';
+        threadsEl.innerHTML = '<span class="text-secondary small">Esperando respuesta de hilos...</span>';
+
+        try {
+            const response = await fetch('/api/bureau/evaluate-batch', { method: 'POST' });
+            const data = await response.json();
+
+            elapsedEl.textContent = data.elapsedTimeMs + ' ms';
+            modelEl.textContent = data.concurrencyModel;
+
+            if (data.virtualThreadsActive) {
+                elapsedEl.className = 'display-6 fw-bold text-success my-1';
+                badgeEl.className = 'badge bg-success';
+                badgeEl.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i> ~6x MÁS RÁPIDO (PROJECT LOOM)';
+                barEl.className = 'progress-bar bg-success';
+                barEl.style.width = '18%';
+            } else {
+                elapsedEl.className = 'display-6 fw-bold text-warning my-1';
+                badgeEl.className = 'badge bg-warning text-dark';
+                badgeEl.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> CUELLO DE BOTELLA (POOL FIJO DE 2 HILOS)';
+                barEl.className = 'progress-bar bg-warning';
+                barEl.style.width = '100%';
+            }
+
+            threadsEl.innerHTML = '';
+            (data.workerThreadsUsed || []).forEach(t => {
+                const span = document.createElement('span');
+                const isVirt = t.includes('VirtualThread');
+                span.className = isVirt
+                    ? 'badge bg-primary text-white thread-pill'
+                    : 'badge bg-secondary text-light thread-pill';
+                span.textContent = t;
+                threadsEl.appendChild(span);
+            });
+        } catch (err) {
+            elapsedEl.textContent = 'Error';
+            modelEl.textContent = 'No se pudo completar la consulta al buró';
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    }
+
+    async function openRegulatoryReport(id, refCode) {
+        document.getElementById('modalRefCode').textContent = refCode;
+        const pre = document.getElementById('modalReportPayload');
+        pre.textContent = 'Generando expediente regulatorio...';
+
+        const modal = new bootstrap.Modal(document.getElementById('regulatoryModal'));
+        modal.show();
+
+        try {
+            const res = await fetch('/api/credits/' + id + '/report');
+            const data = await res.json();
+            pre.textContent = data.payload;
+        } catch (e) {
+            pre.textContent = 'Error al obtener el dictamen regulatorio.';
+        }
+    }
+</script>
+</body>
+</html>
