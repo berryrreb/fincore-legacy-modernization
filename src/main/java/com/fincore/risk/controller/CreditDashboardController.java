@@ -137,6 +137,7 @@ public class CreditDashboardController {
         app.setProcessedByThread(Thread.currentThread().getName());
 
         repository.save(app);
+        dataInitializer.saveCustomApplication(app);
 
         redirectAttributes.addFlashAttribute("successMessage",
                 "Solicitud " + referenceCode + " originada exitosamente (" + assessment.getRecommendedStatus() +
@@ -168,6 +169,7 @@ public class CreditDashboardController {
 
     @PostMapping("/credits/reset")
     public String resetDemoData(RedirectAttributes redirectAttributes) {
+        dataInitializer.clearCustomApplications();
         repository.deleteAll();
         dataInitializer.seedInitialPortfolio();
         redirectAttributes.addFlashAttribute("successMessage",

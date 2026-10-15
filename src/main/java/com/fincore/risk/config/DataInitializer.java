@@ -1,5 +1,7 @@
 package com.fincore.risk.config;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fincore.risk.entity.CreditApplication;
 import com.fincore.risk.model.LoanProduct;
 import com.fincore.risk.model.RiskAssessment;
@@ -8,19 +10,29 @@ import com.fincore.risk.service.RiskCalculatorService;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
+import java.io.File;
+import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * Seeds realistic Banking Credit Origination records into the in-memory H2 database at startup.
+ * Seeds realistic Banking Credit Origination records into the in-memory H2 database at startup,
+ * and persists user-originated applications into a local JSON snapshot so they survive restarts across lab missions.
  *
  * LEGACY PAIN POINT: Uses javax.annotation.PostConstruct (must migrate to jakarta.annotation.PostConstruct in Java 21 / Spring Boot 3).
  */
 @Component
 public class DataInitializer {
 
+    private static final File LOCAL_CUSTOM_FILE = new File("src/main/resources/custom-applications.json");
+    private static final File TMP_CUSTOM_FILE = new File("/tmp/fincore-custom-applications.json");
+
     private final CreditApplicationRepository repository;
     private final RiskCalculatorService riskCalculatorService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public DataInitializer(CreditApplicationRepository repository,
                            RiskCalculatorService riskCalculatorService) {
@@ -34,7 +46,7 @@ public class DataInitializer {
             return;
         }
 
-        List<CreditApplication> seeds = Arrays.asList(
+        List<CreditApplication> seeds = new ArrayList<CreditApplication>(Arrays.asList(
                 buildSeed("FIN-2026-001", "Grupo Industrial Monterrey S.A.", "CORPORATE", 1250000.0, 60, 785, 420000.0, 950000.0),
                 buildSeed("FIN-2026-002", "María Fernanda Castellanos", "MORTGAGE", 240000.0, 240, 760, 8500.0, 340000.0),
                 buildSeed("FIN-2026-003", "Comercializadora Andina PyME", "SME", 85000.0, 36, 715, 22000.0, 95000.0),
@@ -47,9 +59,79 @@ public class DataInitializer {
                 buildSeed("FIN-2026-010", "Jorge Luis Santamaría", "CONSUMER", 12000.0, 18, 665, 2600.0, 0.0),
                 buildSeed("FIN-2026-011", "Desarrollos Inmobiliarios Sur", "CORPORATE", 2100000.0, 72, 640, 310000.0, 600000.0),
                 buildSeed("FIN-2026-012", "Laura Patricia Orozco", "MORTGAGE", 195000.0, 240, 790, 9100.0, 280000.0)
-        );
+        ));
+
+        for (Map<String, Object> item : readStoredCustomEntries()) {
+            CreditApplication customApp = buildSeed(
+                    String.valueOf(item.get("referenceCode")),
+                    String.valueOf(item.get("applicantName")),
+                    String.valueOf(item.get("productType")),
+                    ((Number) item.get("requestedAmount")).doubleValue(),
+                    ((Number) item.get("termMonths")).intValue(),
+                    ((Number) item.get("creditScore")).intValue(),
+                    ((Number) item.get("monthlyIncomeOrRevenue")).doubleValue(),
+                    ((Number) item.get("collateralOrPropertyValue")).doubleValue()
+            );
+            customApp.setBureauVerificationCode("NEW-ORIGINATION");
+            seeds.add(customApp);
+        }
 
         repository.saveAll(seeds);
+    }
+
+    public synchronized void saveCustomApplication(CreditApplication app) {
+        try {
+            List<Map<String, Object>> current = readStoredCustomEntries();
+            Map<String, Object> entry = new LinkedHashMap<String, Object>();
+            entry.put("referenceCode", app.getReferenceCode());
+            entry.put("applicantName", app.getApplicantName());
+            entry.put("productType", app.getProductType());
+            entry.put("requestedAmount", app.getRequestedAmount());
+            entry.put("termMonths", app.getTermMonths());
+            entry.put("creditScore", app.getCreditScore());
+            entry.put("monthlyIncomeOrRevenue", app.getMonthlyIncomeOrRevenue());
+            entry.put("collateralOrPropertyValue", app.getCollateralOrPropertyValue());
+            current.add(entry);
+
+            File target = LOCAL_CUSTOM_FILE.getParentFile() != null && LOCAL_CUSTOM_FILE.getParentFile().exists()
+                    ? LOCAL_CUSTOM_FILE
+                    : TMP_CUSTOM_FILE;
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(target, current);
+        } catch (Exception ignored) {
+            // Non-blocking persistence fallback
+        }
+    }
+
+    public synchronized void clearCustomApplications() {
+        if (LOCAL_CUSTOM_FILE.exists()) {
+            LOCAL_CUSTOM_FILE.delete();
+        }
+        if (TMP_CUSTOM_FILE.exists()) {
+            TMP_CUSTOM_FILE.delete();
+        }
+    }
+
+    private List<Map<String, Object>> readStoredCustomEntries() {
+        try {
+            TypeReference<List<Map<String, Object>>> typeRef = new TypeReference<List<Map<String, Object>>>() {};
+            if (LOCAL_CUSTOM_FILE.exists()) {
+                return objectMapper.readValue(LOCAL_CUSTOM_FILE, typeRef);
+            }
+            if (TMP_CUSTOM_FILE.exists()) {
+                return objectMapper.readValue(TMP_CUSTOM_FILE, typeRef);
+            }
+            InputStream cpStream = getClass().getClassLoader().getResourceAsStream("custom-applications.json");
+            if (cpStream != null) {
+                try {
+                    return objectMapper.readValue(cpStream, typeRef);
+                } finally {
+                    cpStream.close();
+                }
+            }
+        } catch (Exception ignored) {
+            // Ignore malformed or missing snapshot
+        }
+        return new ArrayList<Map<String, Object>>();
     }
 
     private CreditApplication buildSeed(String ref, String applicant, String type,
